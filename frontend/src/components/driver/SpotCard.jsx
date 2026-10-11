@@ -37,10 +37,10 @@ export default function SpotCard({ spot, onClose, onBooked }) {
 
   // Smart initial time defaults from first open slot if available
   const initialSlot = availableSlots.length > 0 ? availableSlots[0] : null
-  const defaultStart = initialSlot ? initialSlot.start_time : (spot.avail_start || '08:00')
+  const defaultStart = initialSlot ? initialSlot.start_time : spot.avail_start
   const defaultEnd = initialSlot
     ? minutesToTime(Math.min(timeToMinutes(initialSlot.start_time) + 60, timeToMinutes(initialSlot.end_time)))
-    : minutesToTime(Math.min(timeToMinutes(spot.avail_start || '08:00') + 60, timeToMinutes(spot.avail_end || '18:00')))
+    : spot.avail_end
 
   // Exact From Time and To Time entered directly by driver (No slider)
   const [startTime, setStartTime] = useState(defaultStart)
@@ -155,11 +155,8 @@ export default function SpotCard({ spot, onClose, onBooked }) {
       setShowSuccessModal(true)
       onBooked()
     } catch (err) {
-      if (err.response?.status === 409) {
-        setError('Slot was just booked by another driver for this time window!')
-      } else {
-        setError(err.response?.data?.detail || 'Booking request failed.')
-      }
+      const serverMsg = err.response?.data?.detail
+      setError(serverMsg || 'Booking request failed.')
     } finally {
       setLoading(false)
     }

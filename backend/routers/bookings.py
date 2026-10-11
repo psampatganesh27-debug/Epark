@@ -10,11 +10,11 @@ router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
 @router.post("", response_model=schemas.BookingOut, status_code=201)
 def create_booking(data: schemas.BookingCreate, db: Session = Depends(get_db)):
-    booking = crud.create_booking(db, data)
+    booking, err_reason = crud.create_booking(db, data)
     if booking is None:
         raise HTTPException(
-            status_code=409,
-            detail="Spot is no longer available — someone else booked it first.",
+            status_code=400 if "Operating hours" in (err_reason or "") or "past" in (err_reason or "") else 409,
+            detail=err_reason or "Spot is no longer available — someone else booked it first.",
         )
     return booking
 

@@ -141,7 +141,7 @@ def get_bookings_for_spot(db: Session, spot_id: int):
     )
 
 
-def create_booking(db: Session, data: schemas.BookingCreate) -> Optional[Booking]:
+def create_booking(db: Session, data: schemas.BookingCreate) -> tuple[Optional[Booking], Optional[str]]:
     """
     Time-Interval aware concurrency lock:
     Only checks for collision with active bookings (PENDING or VERIFIED)
@@ -151,7 +151,7 @@ def create_booking(db: Session, data: schemas.BookingCreate) -> Optional[Booking
 
     spot = get_spot(db, data.spot_id)
     if not spot:
-        return None
+        return None, "Parking spot not found"
 
     # Default start and end times if not explicitly passed
     req_start = data.start_time or spot.avail_start
@@ -169,12 +169,12 @@ def create_booking(db: Session, data: schemas.BookingCreate) -> Optional[Booking
     host_start_m = _time_to_minutes(spot.avail_start)
     host_end_m = _time_to_minutes(spot.avail_end)
     if req_start_m < host_start_m or req_end_m > host_end_m or req_start_m >= req_end_m:
-        return None
+        return None, f"Operating hours for this spot are {spot.avail_start} to {spot.avail_end}."
 
     # 1b. Disallow booking intervals that have already ended in the past today
     now_m = _time_to_minutes(datetime.now().strftime("%H:%M"))
     if req_end_m <= now_m:
-        return None
+        return None, "Selected time slot has already passed for today."
 
     # 2. Concurrency Conflict Check: Check for overlapping active bookings
     active_bookings = (
@@ -192,7 +192,7 @@ def create_booking(db: Session, data: schemas.BookingCreate) -> Optional[Booking
         # Overlap condition: max(start1, start2) < min(end1, end2)
         if max(req_start_m, b_start_m) < min(req_end_m, b_end_m):
             db.rollback()
-            return None  # Collision detected!
+            return None, f"Slot is already booked from {b.start_time} to {b.end_time} by another driver."
 
     # 3. Create booking with unique 4-digit OTP
     otp = str(random.randint(1000, 9999))
@@ -222,7 +222,7 @@ def create_booking(db: Session, data: schemas.BookingCreate) -> Optional[Booking
     db.add(booking)
     db.commit()
     db.refresh(booking)
-    return booking
+    return booking, None
 
 
 def verify_booking(db: Session, booking_id: int, otp: str) -> Optional[Booking]:
