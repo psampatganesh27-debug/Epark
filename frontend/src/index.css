@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.leaflet-default-icon-path {
+  background-image: url('https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png');
+}
+
+/* Ensure Leaflet container always fills 100% of its parent */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  z-index: 1;
+}
+
+/* ── App-Wide Dark Mode Variables & Theme Rules ── */
+:root {
+  --bg-primary: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-color: #e2e8f0;
+}
+
+html.dark,
+body.dark,
+.dark {
+  --bg-primary: #09090b;
+  --bg-surface: #121215;
+  --bg-subtle: #18181b;
+  --text-primary: #f8fafc;
+  --text-secondary: #a1a1aa;
+  --border-color: #27272a;
+}
+
+/* Global body styling governed by theme variables */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Map Dark Mode filter - modern dark theme without crushing tiles to black */
+.dark .dark-tile-layer {
+  filter: brightness(0.85) invert(1) contrast(1.2) hue-rotate(200deg) saturate(0.5);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #27272a;
+}

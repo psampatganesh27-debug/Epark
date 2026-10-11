@@ -1,0 +1,5 @@
+fastapi>=0.110
+uvicorn[standard]>=0.30
+sqlalchemy==2.0.41
+pydantic>=2.10
+pydantic-core>=2.50.0   # needs pre-built cp314 wheel; install with --only-binary=pydantic,pydantic-core
