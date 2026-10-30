@@ -7,6 +7,7 @@ import {
   minutesToTime,
   getAvailableSlots,
   parseUtcDate,
+  getSpotVisibilityStatus,
 } from '../../utils/time'
 
 const AMENITY_MAP = {
@@ -34,6 +35,7 @@ export default function SpotCard({ spot, onClose, onBooked }) {
   
   const bookedSlots = spot.booked_slots || []
   const availableSlots = getAvailableSlots(spot.avail_start, spot.avail_end, bookedSlots)
+  const visibility = getSpotVisibilityStatus(spot.avail_start, spot.avail_end)
 
   // Smart initial time defaults from first open slot if available
   const initialSlot = availableSlots.length > 0 ? availableSlots[0] : null
@@ -364,8 +366,22 @@ export default function SpotCard({ spot, onClose, onBooked }) {
           </div>
         )}
 
-        {/* ── Booking Form or Result ── */}
+        {/* ── Booking Form or Closed Notice ── */}
         {!booking ? (
+          visibility.isClosedForToday ? (
+            <div className="bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/80 rounded-2xl p-4 text-center space-y-2 mt-2">
+              <span className="text-3xl block">🌙</span>
+              <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                Spot Closed for Tonight
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-zinc-400">
+                Operating Hours: <strong className="font-mono text-slate-900 dark:text-white">{formatTime12(spot.avail_start)}</strong> to <strong className="font-mono text-slate-900 dark:text-white">{formatTime12(spot.avail_end)}</strong> daily.
+              </p>
+              <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs font-semibold">
+                ✓ Active Daily Listing • Booking reopens tomorrow at {formatTime12(spot.avail_start)}
+              </div>
+            </div>
+          ) : (
           <div className="space-y-3 pt-1">
             <div>
               <label className="block text-xs font-bold text-slate-800 dark:text-zinc-200 mb-1 uppercase tracking-wider text-[11px]">
@@ -499,6 +515,7 @@ export default function SpotCard({ spot, onClose, onBooked }) {
               {loading ? 'Reserving slot…' : `Reserve ${formatTime12(startTime)} – ${formatTime12(endTime)} (₹${calculatedTotal})`}
             </button>
           </div>
+          )
         ) : (
 
           /* ── Persistent Pass Card ── */

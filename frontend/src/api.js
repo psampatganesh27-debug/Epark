@@ -29,6 +29,9 @@ export const getSpotBookings = (spotId) =>
 export const resetSpot = (spotId) =>
   api.post(`/api/spots/${spotId}/reset`).then((r) => r.data)
 
+export const clearTestData = (clearSpots = false) =>
+  api.post(`/api/spots/admin/clear-data?clear_spots=${clearSpots}`).then((r) => r.data)
+
 // ── Bookings ─────────────────────────────────────────────────────────────────
 export const createBooking = (data) =>
   api.post('/api/bookings', data).then((r) => r.data)

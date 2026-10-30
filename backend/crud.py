@@ -1,6 +1,7 @@
 import random
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 from sqlalchemy import update
@@ -9,6 +10,15 @@ from models import Spot, Booking
 import schemas
 
 RESERVATION_EXPIRY_MINUTES = 15  # Auto-release if OTP not checked in within 15 mins of creation
+
+
+def _get_now_ist() -> datetime:
+    """Returns the current datetime in Indian Standard Time (Asia/Kolkata)."""
+    try:
+        return datetime.now(ZoneInfo("Asia/Kolkata"))
+    except Exception:
+        # Fallback if zoneinfo tzdata is unavailable
+        return datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
 
 
 def _time_to_minutes(t_str: str) -> int:
@@ -36,10 +46,14 @@ def get_spots(db: Session, status: Optional[str] = None, include_archived: bool 
         query = query.filter(Spot.is_archived == False)
     spots = query.order_by(Spot.created_at.desc()).all()
     
+    now_ist = _get_now_ist()
+    now_str = now_ist.strftime("%H:%M")
+    now_mins = _time_to_minutes(now_str)
+
     # Enrich each spot with active booked slots
     result = []
     for s in spots:
-        # Get active (PENDING or VERIFIED) bookings
+        # Get active (PENDING or VERIFIED) bookings for today
         active_bookings = (
             db.query(Booking)
             .filter(
@@ -62,10 +76,6 @@ def get_spots(db: Session, status: Optional[str] = None, include_archived: bool 
         booked_slots.sort(key=lambda x: _time_to_minutes(x["start_time"]))
 
         # Determine real-time spot status:
-        # If currently occupying full window or active verified check-in right now
-        now_str = datetime.now().strftime("%H:%M")
-        now_mins = _time_to_minutes(now_str)
-
         # Check if right now is within any verified session
         currently_occupied = any(
             b.status == "VERIFIED" and
@@ -171,10 +181,11 @@ def create_booking(db: Session, data: schemas.BookingCreate) -> tuple[Optional[B
     if req_start_m < host_start_m or req_end_m > host_end_m or req_start_m >= req_end_m:
         return None, f"Operating hours for this spot are {spot.avail_start} to {spot.avail_end}."
 
-    # 1b. Disallow booking intervals that have already ended in the past today
-    now_m = _time_to_minutes(datetime.now().strftime("%H:%M"))
+    # 1b. Disallow booking intervals that have already ended in the past today (using local IST)
+    now_ist = _get_now_ist()
+    now_m = now_ist.hour * 60 + now_ist.minute
     if req_end_m <= now_m:
-        return None, "Selected time slot has already passed for today."
+        return None, f"Selected time slot ({req_start} to {req_end}) has already passed for today."
 
     # 2. Concurrency Conflict Check: Check for overlapping active bookings
     active_bookings = (
@@ -196,15 +207,15 @@ def create_booking(db: Session, data: schemas.BookingCreate) -> tuple[Optional[B
 
     # 3. Create booking with unique 4-digit OTP
     otp = str(random.randint(1000, 9999))
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     
-    # Calculate scheduled slot start datetime for today
-    start_h, start_m = [int(p) for p in req_start.split(":")]
-    slot_start_dt = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+    # Calculate scheduled slot start datetime in UTC for expires_at
+    start_h, start_m_part = [int(p) for p in req_start.split(":")]
+    slot_start_ist = now_ist.replace(hour=start_h, minute=start_m_part, second=0, microsecond=0)
+    slot_start_utc = (slot_start_ist - timedelta(hours=5, minutes=30)).replace(tzinfo=None)
     
-    # Grace period: 15 minutes after the scheduled slot start time!
-    # (If slot already started or starting right now, 15 minutes from now)
-    base_dt = max(now, slot_start_dt)
+    # Grace period: 15 minutes after the scheduled slot start time (or 15 mins from now if starting immediately)
+    base_dt = max(now_utc, slot_start_utc)
     expires_at = base_dt + timedelta(minutes=RESERVATION_EXPIRY_MINUTES)
     duration_hrs = (req_end_m - req_start_m) / 60.0
 
@@ -266,22 +277,59 @@ def reset_spot(db: Session, spot_id: int) -> Optional[Spot]:
     return spot
 
 
-# ── Auto-expiry sweep for unverified holds ───────────────────────────────────
+def clear_all_test_data(db: Session, keep_sample_spots: bool = True):
+    """Admin function: clears all test bookings and optionally deletes custom spots."""
+    db.query(Booking).delete()
+    if not keep_sample_spots:
+        db.query(Spot).delete()
+    else:
+        # Reset all remaining spots to AVAILABLE
+        db.query(Spot).update({"status": "AVAILABLE"})
+    db.commit()
+
+
+# ── Auto-expiry & Completion sweep for reservations ─────────────────────────
 
 def _expire_stale_reservations(db: Session):
-    """Release any unverified bookings whose 15-min OTP hold has elapsed."""
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    stale = (
+    """
+    1. Release unverified bookings whose 15-min OTP hold has elapsed.
+    2. Auto-complete past VERIFIED sessions whose end_time has passed today (or from previous days).
+    """
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    now_ist = _get_now_ist()
+    now_ist_date = now_ist.date()
+    now_ist_mins = now_ist.hour * 60 + now_ist.minute
+
+    # 1. Stale unverified holds
+    stale_pending = (
         db.query(Booking)
         .filter(
             Booking.status == "PENDING",
             Booking.expires_at.isnot(None),
-            Booking.expires_at < now,
+            Booking.expires_at < now_utc,
         )
         .all()
     )
-    for booking in stale:
+    for booking in stale_pending:
         booking.status = "EXPIRED"
 
-    if stale:
-        db.commit()
+    # 2. Check active (PENDING or VERIFIED) bookings for past time completion
+    active_bookings = (
+        db.query(Booking)
+        .filter(Booking.status.in_(["PENDING", "VERIFIED"]))
+        .all()
+    )
+    for b in active_bookings:
+        # Convert booked_at UTC to IST date
+        b_ist_date = (b.booked_at + timedelta(hours=5, minutes=30)).date() if b.booked_at else now_ist_date
+        if b_ist_date < now_ist_date:
+            # Stale booking from a prior day
+            b.status = "COMPLETED" if b.status == "VERIFIED" else "EXPIRED"
+        elif b.end_time:
+            b_end_mins = _time_to_minutes(b.end_time)
+            if b_end_mins <= now_ist_mins:
+                # Slot has passed for today
+                b.status = "COMPLETED" if b.status == "VERIFIED" else "EXPIRED"
+
+    db.commit()
+

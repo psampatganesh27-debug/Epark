@@ -7,6 +7,7 @@ import {
   resetSpot,
   verifyBooking,
   cancelBooking,
+  clearTestData,
 } from '../../api'
 
 const STATUS_STYLE = {
@@ -19,6 +20,7 @@ const STATUS_STYLE = {
 const BOOKING_STYLE = {
   PENDING: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800',
   VERIFIED: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800',
+  COMPLETED: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800',
   EXPIRED: 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700',
   CANCELLED: 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700',
 }
@@ -29,6 +31,7 @@ import {
   timeToMinutes,
   getAvailableSlots,
   formatLocalTime,
+  getSpotVisibilityStatus,
 } from '../../utils/time'
 
 export default function OwnerDashboard({ refresh }) {
@@ -116,6 +119,16 @@ export default function OwnerDashboard({ refresh }) {
     load()
   }
 
+  const handleClearTestData = async () => {
+    if (!confirm('Clear all test bookings from database? This gives you a completely fresh slate for testing new bookings.')) return
+    try {
+      await clearTestData(false)
+      load()
+    } catch {
+      alert('Failed to clear test data.')
+    }
+  }
+
   // Calculate Real-Time Metrics based on exact current clock time across ALL spots (including archived for earnings)
   const now = new Date()
   const currentMinutes = now.getHours() * 60 + now.getMinutes()
@@ -130,8 +143,8 @@ export default function OwnerDashboard({ refresh }) {
     let isSpotActiveRightNow = false
 
     bList.forEach((b) => {
-      // Net earnings accumulates all verified stays across current AND archived spots!
-      if (b.status === 'VERIFIED') {
+      // Net earnings accumulates all verified & completed stays across current AND archived spots!
+      if (b.status === 'VERIFIED' || b.status === 'COMPLETED') {
         totalVerifiedSessions += 1
         const duration = b.duration_hrs || 1.0
         totalEarnings += spot.price_inr * duration
@@ -227,9 +240,19 @@ export default function OwnerDashboard({ refresh }) {
             </span>
           </button>
         </div>
-        <span className="text-xs font-mono text-slate-500 dark:text-zinc-400 font-semibold">
-          {displayedSpots.length} {activeTab === 'active' ? 'active' : 'archived'} location{displayedSpots.length !== 1 ? 's' : ''}
-        </span>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleClearTestData}
+            className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition"
+            title="Wipe old test bookings to start a clean booking test"
+          >
+            🗑️ Clear Test Bookings
+          </button>
+          <span className="text-xs font-mono text-slate-500 dark:text-zinc-400 font-semibold">
+            {displayedSpots.length} {activeTab === 'active' ? 'active' : 'archived'} location{displayedSpots.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       {displayedSpots.length === 0 ? (
@@ -247,6 +270,7 @@ export default function OwnerDashboard({ refresh }) {
         displayedSpots.map((spot) => {
           const bookings = bookingsMap[spot.id] || []
           const isExpanded = expandedId === spot.id
+          const visibility = getSpotVisibilityStatus(spot.avail_start, spot.avail_end)
 
           return (
             <div
@@ -271,9 +295,22 @@ export default function OwnerDashboard({ refresh }) {
                       {spot.is_archived ? 'ARCHIVED' : spot.status}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-700 dark:text-zinc-300 mt-1 font-medium">
-                    <span className="font-bold text-slate-900 dark:text-white">₹{spot.price_inr}</span>/hr • {spot.vehicle_type} • Window: <strong className="font-mono text-indigo-600 dark:text-indigo-400">{formatTime12(spot.avail_start)} to {formatTime12(spot.avail_end)}</strong>
-                  </p>
+
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
+                      visibility.status === 'OPEN_NOW'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                        : visibility.status === 'OPENS_TODAY'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
+                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700'
+                    }`}>
+                      {visibility.label}
+                    </span>
+                    <span className="text-[11px] text-slate-600 dark:text-zinc-300 font-medium">
+                      <span className="font-bold text-slate-900 dark:text-white">₹{spot.price_inr}</span>/hr • {spot.vehicle_type} • Daily Window: <strong className="font-mono text-indigo-600 dark:text-indigo-400">{formatTime12(spot.avail_start)} to {formatTime12(spot.avail_end)}</strong>
+                    </span>
+                  </div>
+
                   <p className="text-[11px] font-mono text-slate-500 dark:text-zinc-400 mt-0.5">
                     GPS: {spot.latitude.toFixed(4)}, {spot.longitude.toFixed(4)}
                   </p>

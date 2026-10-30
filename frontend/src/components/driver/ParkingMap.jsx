@@ -4,7 +4,7 @@ import L from 'leaflet'
 import { getSpots } from '../../api'
 import SpotCard from './SpotCard'
 import { useTheme } from '../../context/ThemeContext'
-import { formatTime12, getAvailableSlots, timeToMinutes } from '../../utils/time'
+import { formatTime12, getAvailableSlots, timeToMinutes, getSpotVisibilityStatus } from '../../utils/time'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -58,13 +58,28 @@ const HIGHLIGHTED_ICONS = {
   OCCUPIED: makeIcon('#ef4444', true),
 }
 
-function MapController({ center, zoom }) {
+function MapController({ center, zoom, spots }) {
   const map = useMap()
+  const hasFittedBoundsRef = useRef(false)
+
   useEffect(() => {
     if (center) {
       map.flyTo(center, zoom || 14, { duration: 1.2 })
     }
   }, [center, zoom, map])
+
+  // Automatically fit map bounds to all available spots when data loads
+  useEffect(() => {
+    if (!hasFittedBoundsRef.current && spots && spots.length > 0) {
+      hasFittedBoundsRef.current = true
+      if (spots.length === 1) {
+        map.flyTo([spots[0].latitude, spots[0].longitude], 15)
+      } else {
+        const bounds = L.latLngBounds(spots.map((s) => [s.latitude, s.longitude]))
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
+      }
+    }
+  }, [spots, map])
 
   useEffect(() => {
     const handleResize = () => {
@@ -100,7 +115,7 @@ export default function ParkingMap() {
   const [searchQuery, setSearchQuery] = useState('')
   const [vehicleFilter, setVehicleFilter] = useState('ALL')
   const [amenityFilter, setAmenityFilter] = useState('ALL')
-  const [maxPrice, setMaxPrice] = useState(250)
+  const [maxPrice, setMaxPrice] = useState(1000)
 
   // Map camera state
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER)
@@ -226,8 +241,8 @@ export default function ParkingMap() {
                   <span className="text-[11px]">Max: <strong className="text-slate-900 dark:text-white font-mono">₹{maxPrice}/hr</strong></span>
                   <input
                     type="range"
-                    min="30"
-                    max="300"
+                    min="10"
+                    max="1000"
                     step="10"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(parseInt(e.target.value))}
@@ -256,6 +271,7 @@ export default function ParkingMap() {
                   const isAvailable = spot.status === 'AVAILABLE'
                   const openSlots = getAvailableSlots(spot.avail_start, spot.avail_end, spot.booked_slots || [])
                   const hasOpenSlots = openSlots.length > 0
+                  const visibility = getSpotVisibilityStatus(spot.avail_start, spot.avail_end)
                   const amenities = (spot.amenities || '').split(',').filter(Boolean)
 
                   return (
@@ -275,16 +291,43 @@ export default function ParkingMap() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className={`w-2.5 h-2.5 rounded-full ${
-                              isAvailable ? 'bg-emerald-500' : spot.status === 'RESERVED' ? 'bg-amber-500' : 'bg-rose-500'
+                              spot.status === 'RESERVED'
+                                ? 'bg-amber-500'
+                                : spot.status === 'OCCUPIED'
+                                ? 'bg-rose-500'
+                                : visibility.isClosedForToday
+                                ? 'bg-slate-400'
+                                : 'bg-emerald-500'
                             }`} />
                             <h4 className="font-bold text-sm text-slate-900 dark:text-white">{spot.title}</h4>
                           </div>
-                          <p className="text-xs text-slate-600 dark:text-zinc-400 mt-1 font-medium">
-                            {spot.vehicle_type} • {formatTime12(spot.avail_start)} to {formatTime12(spot.avail_end)}
-                          </p>
+
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
+                              spot.status === 'OCCUPIED'
+                                ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800'
+                                : spot.status === 'RESERVED'
+                                ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                : visibility.status === 'OPEN_NOW'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                : visibility.status === 'OPENS_TODAY'
+                                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-700'
+                            }`}>
+                              {spot.status === 'OCCUPIED'
+                                ? 'In Use'
+                                : spot.status === 'RESERVED'
+                                ? 'Reserved'
+                                : visibility.label}
+                            </span>
+                            <span className="text-[11px] text-slate-600 dark:text-zinc-400 font-medium">
+                              {spot.vehicle_type} • Daily {formatTime12(spot.avail_start)} – {formatTime12(spot.avail_end)}
+                            </span>
+                          </div>
+
                           {spot.booked_slots && spot.booked_slots.length > 0 && (
-                            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
-                              {spot.booked_slots.length} reserved slot{spot.booked_slots.length !== 1 ? 's' : ''} • {openSlots.length} open
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                              {spot.booked_slots.length} reserved slot{spot.booked_slots.length !== 1 ? 's' : ''} • {openSlots.length} open today
                             </p>
                           )}
                         </div>
@@ -313,27 +356,25 @@ export default function ParkingMap() {
                         <span className="text-[11px] font-mono text-slate-500 dark:text-zinc-400">
                           GPS: {spot.latitude.toFixed(3)}, {spot.longitude.toFixed(3)}
                         </span>
-                        {(() => {
-                          const nowMins = new Date().getHours() * 60 + new Date().getMinutes()
-                          const endMins = timeToMinutes(spot.avail_end)
-                          const isClosed = nowMins >= endMins
-
-                          return (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleSpotSelect(spot)
-                              }}
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                                hasOpenSlots
-                                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                                  : 'bg-slate-200 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
-                              }`}
-                            >
-                              {hasOpenSlots ? 'Book Slot' : isClosed ? 'Closed for Today' : 'Fully Booked'}
-                            </button>
-                          )
-                        })()}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSpotSelect(spot)
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                            hasOpenSlots
+                              ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                              : visibility.isClosedForToday
+                              ? 'bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 border border-slate-300 dark:border-zinc-700'
+                              : 'bg-slate-200 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
+                          }`}
+                        >
+                          {hasOpenSlots
+                            ? 'Book Slot'
+                            : visibility.isClosedForToday
+                            ? 'Opens Tomorrow'
+                            : 'Fully Booked'}
+                        </button>
                       </div>
                     </div>
                   )
@@ -362,7 +403,7 @@ export default function ParkingMap() {
             style={{ height: '100%', width: '100%' }}
             className="h-full w-full"
           >
-            <MapController center={mapCenter} zoom={mapZoom} />
+            <MapController center={mapCenter} zoom={mapZoom} spots={spots} />
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url={tileUrl}

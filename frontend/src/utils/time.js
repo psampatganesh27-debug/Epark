@@ -47,6 +47,69 @@ export function formatDuration(startStr, endStr) {
 }
 
 /**
+ * Evaluates the daily visibility cycle of a parking listing based on local time.
+ */
+export function getSpotVisibilityStatus(availStart, availEnd) {
+  if (!availStart || !availEnd) {
+    return { status: 'AVAILABLE', label: 'Available', badgeColor: 'emerald', isClosedForToday: false }
+  }
+
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const startM = timeToMinutes(availStart)
+  const endM = timeToMinutes(availEnd)
+
+  if (startM < endM) {
+    // Normal same-day window (e.g. 08:00 to 20:00)
+    if (currentMinutes < startM) {
+      return {
+        status: 'OPENS_TODAY',
+        label: `Opens Today at ${formatTime12(availStart)}`,
+        subtext: `Daily hours: ${formatTime12(availStart)} – ${formatTime12(availEnd)}`,
+        badgeColor: 'indigo',
+        isClosedForToday: false,
+      }
+    } else if (currentMinutes >= startM && currentMinutes < endM) {
+      return {
+        status: 'OPEN_NOW',
+        label: 'Open Now',
+        subtext: `Closes at ${formatTime12(availEnd)}`,
+        badgeColor: 'emerald',
+        isClosedForToday: false,
+      }
+    } else {
+      return {
+        status: 'CLOSED_TODAY',
+        label: `Opens Tomorrow at ${formatTime12(availStart)}`,
+        subtext: `Daily recurring: ${formatTime12(availStart)} – ${formatTime12(availEnd)}`,
+        badgeColor: 'slate',
+        isClosedForToday: true,
+      }
+    }
+  } else {
+    // Overnight window (e.g. 20:00 to 02:00)
+    const isDuringNightWindow = currentMinutes >= startM || currentMinutes < endM
+    if (isDuringNightWindow) {
+      return {
+        status: 'OPEN_NOW',
+        label: 'Open Overnight',
+        subtext: `Closes at ${formatTime12(availEnd)}`,
+        badgeColor: 'emerald',
+        isClosedForToday: false,
+      }
+    } else {
+      return {
+        status: 'OPENS_TODAY',
+        label: `Opens Tonight at ${formatTime12(availStart)}`,
+        subtext: `Night window: ${formatTime12(availStart)} – ${formatTime12(availEnd)}`,
+        badgeColor: 'indigo',
+        isClosedForToday: false,
+      }
+    }
+  }
+}
+
+/**
  * Calculates remaining available (free) time intervals within the host window.
  * If filterPast=true (default for today's bookings), slots before the current time are excluded.
  * E.g., host: 08:00 to 20:00, now is 18:30 -> slots start from 18:30 onwards.

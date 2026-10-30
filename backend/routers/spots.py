@@ -48,3 +48,13 @@ def reset_spot(spot_id: int, db: Session = Depends(get_db)):
     if not spot:
         raise HTTPException(status_code=404, detail="Spot not found")
     return spot
+
+
+@router.post("/admin/clear-data")
+def clear_all_data(
+    clear_spots: bool = Query(default=False, description="Whether to also clear spots"),
+    db: Session = Depends(get_db),
+):
+    crud.clear_all_test_data(db, keep_sample_spots=not clear_spots)
+    return {"message": "All test bookings successfully cleared."}
+
