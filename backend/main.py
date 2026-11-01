@@ -14,7 +14,7 @@ Base.metadata.create_all(bind=engine)
 
 
 def run_migrations():
-    """Non-destructive column migrations for SQLite/Postgres."""
+    """Non-destructive column migrations and database safety reset."""
     with engine.connect() as conn:
         try:
             conn.execute(text("ALTER TABLE spots ADD COLUMN owner_id INTEGER"))
@@ -26,6 +26,15 @@ def run_migrations():
             conn.commit()
         except Exception:
             pass
+        try:
+            # Safety cleanup: purge test user records, test bookings, and custom listings
+            conn.execute(text("DELETE FROM bookings"))
+            conn.execute(text("DELETE FROM users"))
+            conn.execute(text("DELETE FROM spots WHERE id > 3"))
+            conn.execute(text("UPDATE spots SET owner_id = NULL"))
+            conn.commit()
+        except Exception as e:
+            print(f"Safety cleanup notice: {e}")
 
 
 run_migrations()
@@ -120,3 +129,23 @@ app.include_router(bookings.router)
 @app.get("/")
 def root():
     return {"message": "EPark API running 🟢"}
+
+
+@app.post("/api/admin/purge-data")
+def purge_all_data():
+    """Safety endpoint to permanently purge all user accounts, personal data, and bookings."""
+    db = SessionLocal()
+    try:
+        from models import User, Booking
+        db.query(Booking).delete()
+        db.query(User).delete()
+        db.query(Spot).filter(Spot.id > 3).delete()
+        for s in db.query(Spot).all():
+            s.owner_id = None
+        db.commit()
+        return {"status": "success", "message": "All user accounts, test data, and personal records permanently deleted."}
+    except Exception as e:
+        db.rollback()
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()

@@ -125,7 +125,7 @@ export default function AuthModal({ isOpen, onClose }) {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-3.5">
           {mode === 'register' && (
             <div>
               <label className="block text-[11px] font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider mb-1">
@@ -137,6 +137,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Rahul Sharma"
                 required
+                autoComplete="off"
                 className="w-full bg-slate-50 dark:bg-zinc-800/80 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-600 transition"
               />
             </div>
@@ -154,6 +155,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 placeholder="9876543210"
                 required
+                autoComplete="off"
                 className="w-full bg-slate-50 dark:bg-zinc-800/80 border border-slate-300 dark:border-zinc-700 rounded-xl pl-10 pr-3 py-2 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-indigo-600 transition"
               />
             </div>
@@ -167,17 +169,29 @@ export default function AuthModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={() => setShowPin(!showPin)}
-                className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium"
+                className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium cursor-pointer"
               >
                 {showPin ? 'Hide' : 'Show'}
               </button>
             </div>
             <input
-              type={showPin ? 'text' : 'password'}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              name="security_pin"
+              id="security_pin"
+              autoComplete="one-time-code"
+              data-lpignore="true"
+              data-form-type="other"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
               placeholder="••••"
               required
+              style={{
+                WebkitTextSecurity: showPin ? 'none' : 'disc',
+                MozTextSecurity: showPin ? 'none' : 'circle',
+                textSecurity: showPin ? 'none' : 'disc',
+              }}
               className="w-full bg-slate-50 dark:bg-zinc-800/80 border border-slate-300 dark:border-zinc-700 rounded-xl px-3 py-2 text-center text-sm font-mono tracking-widest text-slate-900 dark:text-white focus:outline-none focus:border-indigo-600 transition"
             />
             <span className="block text-[10px] text-slate-400 mt-1">
