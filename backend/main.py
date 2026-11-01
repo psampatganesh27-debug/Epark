@@ -14,7 +14,7 @@ Base.metadata.create_all(bind=engine)
 
 
 def run_migrations():
-    """Non-destructive column migrations and database safety reset."""
+    """Non-destructive column migrations for SQLite/Postgres."""
     with engine.connect() as conn:
         try:
             conn.execute(text("ALTER TABLE spots ADD COLUMN owner_id INTEGER"))
@@ -26,15 +26,6 @@ def run_migrations():
             conn.commit()
         except Exception:
             pass
-        try:
-            # Safety cleanup: purge test user records, test bookings, and custom listings
-            conn.execute(text("DELETE FROM bookings"))
-            conn.execute(text("DELETE FROM users"))
-            conn.execute(text("DELETE FROM spots WHERE id > 3"))
-            conn.execute(text("UPDATE spots SET owner_id = NULL"))
-            conn.commit()
-        except Exception as e:
-            print(f"Safety cleanup notice: {e}")
 
 
 run_migrations()
