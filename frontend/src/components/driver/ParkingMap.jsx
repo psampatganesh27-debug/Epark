@@ -121,7 +121,7 @@ export default function ParkingMap() {
   const [searchQuery, setSearchQuery] = useState('')
   const [vehicleFilter, setVehicleFilter] = useState('ALL')
   const [amenityFilter, setAmenityFilter] = useState('ALL')
-  const [maxPrice, setMaxPrice] = useState(1000)
+  const [maxPrice, setMaxPrice] = useState(200)
 
   // Map camera state
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER)
@@ -353,8 +353,8 @@ export default function ParkingMap() {
                   <input
                     type="range"
                     min="10"
-                    max="1000"
-                    step="10"
+                    max="200"
+                    step="5"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(parseInt(e.target.value))}
                     className="w-20 accent-indigo-600 cursor-pointer"

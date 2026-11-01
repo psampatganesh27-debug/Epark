@@ -4,6 +4,7 @@ import L from 'leaflet'
 import { createSpot } from '../../api'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
+import AuthModal from '../auth/AuthModal'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -194,6 +195,7 @@ export default function ListSpotForm({ onCreated }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showMap, setShowMap] = useState(true)
+  const [showAuthModal, setShowAuthModal] = useState(false)
 
   // Location helpers state
   const [geoLoading, setGeoLoading] = useState(false)
@@ -394,6 +396,24 @@ export default function ListSpotForm({ onCreated }) {
         </p>
       </div>
 
+      {!user ? (
+        <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-6 text-center space-y-3.5 my-2 shadow-xs">
+          <span className="text-4xl block">🔒</span>
+          <h3 className="font-bold text-base text-slate-900 dark:text-white">
+            Host Login Required
+          </h3>
+          <p className="text-xs text-slate-600 dark:text-zinc-400 max-w-sm mx-auto leading-relaxed">
+            You must be signed in with your mobile number and security PIN to register and publish parking spaces into the network.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowAuthModal(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer inline-flex items-center gap-1.5"
+          >
+            <span>Sign In / Register with PIN</span>
+          </button>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-4 text-xs">
         {/* Location Picker Section */}
         <div className="bg-slate-50 dark:bg-zinc-800/60 border border-slate-200 dark:border-zinc-700/80 rounded-2xl p-4 space-y-3">
@@ -734,11 +754,15 @@ export default function ListSpotForm({ onCreated }) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition duration-200 shadow-sm disabled:opacity-50"
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition duration-200 shadow-sm disabled:opacity-50 cursor-pointer"
         >
           {loading ? 'Submitting listing…' : 'Publish Spot to Network'}
         </button>
       </form>
+      )}
+
+      {/* Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   )
 }

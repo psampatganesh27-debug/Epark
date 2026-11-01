@@ -3,13 +3,24 @@ from sqlalchemy.orm import Session
 
 import crud
 import schemas
+import auth_utils
 from database import get_db
+from models import User
 
 router = APIRouter(prefix="/api/bookings", tags=["bookings"])
 
 
 @router.post("", response_model=schemas.BookingOut, status_code=201)
-def create_booking(data: schemas.BookingCreate, db: Session = Depends(get_db)):
+def create_booking(
+    data: schemas.BookingCreate,
+    user: User = Depends(auth_utils.get_current_user_required),
+    db: Session = Depends(get_db),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required. Please sign in with your PIN.")
+    data.driver_id = user.id
+    data.driver_name = data.driver_name or user.name
+    data.driver_phone = data.driver_phone or user.phone
     booking, err_reason = crud.create_booking(db, data)
     if booking is None:
         raise HTTPException(
@@ -17,6 +28,7 @@ def create_booking(data: schemas.BookingCreate, db: Session = Depends(get_db)):
             detail=err_reason or "Spot is no longer available — someone else booked it first.",
         )
     return booking
+
 
 
 @router.post("/{booking_id}/verify", response_model=schemas.BookingOut)

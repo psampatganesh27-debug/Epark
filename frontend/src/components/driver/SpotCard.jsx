@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { createBooking } from '../../api'
 import { useAuth } from '../../context/AuthContext'
+import AuthModal from '../auth/AuthModal'
 import {
   formatTime12,
   formatDuration,
@@ -60,6 +61,7 @@ export default function SpotCard({ spot, onClose, onBooked }) {
   
   const [booking, setBooking] = useState(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [timeLeft, setTimeLeft] = useState(null)
@@ -377,7 +379,7 @@ export default function SpotCard({ spot, onClose, onBooked }) {
           </div>
         )}
 
-        {/* ── Booking Form or Closed Notice ── */}
+        {/* ── Booking Form or Closed Notice or Login Prompt ── */}
         {!booking ? (
           visibility.isClosedForToday ? (
             <div className="bg-slate-50 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700/80 rounded-2xl p-4 text-center space-y-2 mt-2">
@@ -391,6 +393,23 @@ export default function SpotCard({ spot, onClose, onBooked }) {
               <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 text-xs font-semibold">
                 ✓ Active Daily Listing • Booking reopens tomorrow at {formatTime12(spot.avail_start)}
               </div>
+            </div>
+          ) : !user ? (
+            <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 text-center space-y-3 mt-2 shadow-xs">
+              <span className="text-3xl block">🔒</span>
+              <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                Login Required to Reserve
+              </h4>
+              <p className="text-xs text-slate-600 dark:text-zinc-400 leading-relaxed">
+                Please sign in with your mobile number and security PIN to book this spot and receive your check-in OTP pass.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowAuthModal(true)}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-md cursor-pointer"
+              >
+                Sign In / Register with PIN
+              </button>
             </div>
           ) : (
           <div className="space-y-3 pt-1">
@@ -644,6 +663,9 @@ export default function SpotCard({ spot, onClose, onBooked }) {
           </div>
         )}
       </div>
+
+      {/* Auth Modal Trigger */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   )
 }

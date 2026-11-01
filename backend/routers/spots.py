@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 
 import crud
 import schemas
+import auth_utils
 from database import get_db
+from models import User
 
 router = APIRouter(prefix="/api/spots", tags=["spots"])
 
@@ -19,8 +21,18 @@ def list_spots(
 
 
 @router.post("", response_model=schemas.SpotOut, status_code=201)
-def create_spot(data: schemas.SpotCreate, db: Session = Depends(get_db)):
+def create_spot(
+    data: schemas.SpotCreate,
+    user: User = Depends(auth_utils.get_current_user_required),
+    db: Session = Depends(get_db),
+):
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required. Please sign in with your PIN.")
+    data.owner_id = user.id
+    data.owner_name = data.owner_name or user.name
+    data.owner_phone = data.owner_phone or user.phone
     return crud.create_spot(db, data)
+
 
 
 @router.delete("/{spot_id}", status_code=204)
