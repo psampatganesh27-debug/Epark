@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-lea
 import L from 'leaflet'
 import { createSpot } from '../../api'
 import { useTheme } from '../../context/ThemeContext'
+import { useAuth } from '../../context/AuthContext'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -176,7 +177,18 @@ const INITIAL = {
 
 export default function ListSpotForm({ onCreated }) {
   const { theme } = useTheme()
+  const { user } = useAuth()
   const [form, setForm] = useState(INITIAL)
+
+  useEffect(() => {
+    if (user) {
+      setForm((f) => ({
+        ...f,
+        owner_name: f.owner_name || user.name || '',
+        owner_phone: f.owner_phone || user.phone || '',
+      }))
+    }
+  }, [user])
   const [selectedAmenities, setSelectedAmenities] = useState([])
   const [pin, setPin] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -344,6 +356,9 @@ export default function ListSpotForm({ onCreated }) {
     try {
       const payload = {
         ...form,
+        owner_id: user?.id || null,
+        owner_name: form.owner_name || user?.name || '',
+        owner_phone: form.owner_phone || user?.phone || '',
         latitude: parseFloat(form.latitude),
         longitude: parseFloat(form.longitude),
         price_inr: parseFloat(form.price_inr),

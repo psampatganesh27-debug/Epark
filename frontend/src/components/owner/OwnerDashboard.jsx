@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
 import {
   getSpots,
   getSpotBookings,
@@ -35,8 +36,10 @@ import {
 } from '../../utils/time'
 
 export default function OwnerDashboard({ refresh }) {
+  const { user } = useAuth()
   const [spots, setSpots] = useState([])
   const [activeTab, setActiveTab] = useState('active') // 'active' | 'archived'
+  const [filterMineOnly, setFilterMineOnly] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [bookingsMap, setBookingsMap] = useState({})
   const [otpInputs, setOtpInputs] = useState({})
@@ -169,8 +172,11 @@ export default function OwnerDashboard({ refresh }) {
     }
   })
 
-  const activeSpots = spots.filter((s) => !s.is_archived)
-  const archivedSpots = spots.filter((s) => s.is_archived)
+  const filteredByOwnership = filterMineOnly && user
+    ? spots.filter((s) => s.owner_id === user.id || s.owner_phone === user.phone)
+    : spots
+  const activeSpots = filteredByOwnership.filter((s) => !s.is_archived)
+  const archivedSpots = filteredByOwnership.filter((s) => s.is_archived)
   const displayedSpots = activeTab === 'active' ? activeSpots : archivedSpots
 
   // Real-time occupancy: strictly 0% if no spot is actively inside a session right now!
@@ -241,10 +247,23 @@ export default function OwnerDashboard({ refresh }) {
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {user && (
+            <button
+              onClick={() => setFilterMineOnly(!filterMineOnly)}
+              className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer border ${
+                filterMineOnly
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                  : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-300 dark:border-zinc-700 hover:border-indigo-500'
+              }`}
+            >
+              {filterMineOnly ? '✓ My Spots Only' : 'Show My Spots Only'}
+            </button>
+          )}
+
           <button
             onClick={handleClearTestData}
-            className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition"
+            className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 px-2.5 py-1 rounded-xl transition cursor-pointer"
             title="Wipe old test bookings to start a clean booking test"
           >
             🗑️ Clear Test Bookings
@@ -285,6 +304,11 @@ export default function OwnerDashboard({ refresh }) {
                 <div className="flex-1 min-w-[200px]">
                   <div className="flex items-center gap-2.5">
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white truncate">{spot.title}</h3>
+                    {user && (spot.owner_id === user.id || spot.owner_phone === user.phone) && (
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                        👤 My Spot
+                      </span>
+                    )}
                     <span
                       className={`text-[10px] font-mono tracking-wide px-2 py-0.5 rounded-md border font-bold ${
                         spot.is_archived

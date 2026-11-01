@@ -7,6 +7,28 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Automatically attach JWT token if stored
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('epark_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+export const registerUser = (data) =>
+  api.post('/api/auth/register', data).then((r) => r.data)
+
+export const loginUser = (data) =>
+  api.post('/api/auth/login', data).then((r) => r.data)
+
+export const getMe = () =>
+  api.get('/api/auth/me').then((r) => r.data)
+
+export const getMyBookings = () =>
+  api.get('/api/auth/my-bookings').then((r) => r.data)
+
 // ── Spots ────────────────────────────────────────────────────────────────────
 export const getSpots = (status, includeArchived = false) => {
   const params = {}

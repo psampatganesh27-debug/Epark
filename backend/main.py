@@ -2,13 +2,33 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base, SessionLocal
-from routers import spots, bookings
+from routers import spots, bookings, auth
 from models import Spot
 
 import os
 
+from sqlalchemy import text
+
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
+
+
+def run_migrations():
+    """Non-destructive column migrations for SQLite/Postgres."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE spots ADD COLUMN owner_id INTEGER"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE bookings ADD COLUMN driver_id INTEGER"))
+            conn.commit()
+        except Exception:
+            pass
+
+
+run_migrations()
 
 
 def seed_sample_data_if_empty():
@@ -92,6 +112,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(spots.router)
 app.include_router(bookings.router)
 

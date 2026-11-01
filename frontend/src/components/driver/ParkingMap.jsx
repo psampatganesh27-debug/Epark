@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { getSpots } from '../../api'
+import { getSpots, getMyBookings } from '../../api'
 import SpotCard from './SpotCard'
 import { useTheme } from '../../context/ThemeContext'
-import { formatTime12, getAvailableSlots, timeToMinutes, getSpotVisibilityStatus } from '../../utils/time'
+import { useAuth } from '../../context/AuthContext'
+import { formatTime12, getAvailableSlots, timeToMinutes, getSpotVisibilityStatus, formatDuration } from '../../utils/time'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -106,10 +107,15 @@ const POLL_INTERVAL = 5000
 
 export default function ParkingMap() {
   const { theme } = useTheme()
+  const { user } = useAuth()
   const [spots, setSpots] = useState([])
   const [selected, setSelected] = useState(null)
   const [hoveredSpotId, setHoveredSpotId] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // Driver Tabs: 'browse' | 'my-passes'
+  const [driverTab, setDriverTab] = useState('browse')
+  const [myBookings, setMyBookings] = useState([])
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('')
@@ -134,12 +140,27 @@ export default function ParkingMap() {
     }
   }, [])
 
+  const loadMyBookings = useCallback(async () => {
+    if (!user) {
+      setMyBookings([])
+      return
+    }
+    try {
+      const data = await getMyBookings()
+      setMyBookings(data)
+    } catch {}
+  }, [user])
+
   useEffect(() => {
     setLoading(true)
     loadSpots()
-    const timer = setInterval(loadSpots, POLL_INTERVAL)
+    loadMyBookings()
+    const timer = setInterval(() => {
+      loadSpots()
+      loadMyBookings()
+    }, POLL_INTERVAL)
     return () => clearInterval(timer)
-  }, [loadSpots])
+  }, [loadSpots, loadMyBookings])
 
   const handleLocateMe = () => {
     if ('geolocation' in navigator) {
@@ -188,11 +209,101 @@ export default function ParkingMap() {
             }}
           />
         ) : (
-          /* Default view: Search & Filter Toolbar + Scrollable Spot Feed */
+          /* Default view: Search & Filter Toolbar + Scrollable Spot Feed OR My Passes */
           <div className="flex-1 flex flex-col h-full overflow-hidden">
+            {user && (
+              <div className="flex items-center gap-4 px-4 pt-3 pb-0 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex-shrink-0">
+                <button
+                  onClick={() => setDriverTab('browse')}
+                  className={`pb-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                    driverTab === 'browse'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  <span>🔍 Explore Spots</span>
+                </button>
+                <button
+                  onClick={() => setDriverTab('my-passes')}
+                  className={`pb-2.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                    driverTab === 'my-passes'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  <span>🎫 My Passes</span>
+                  <span className="text-[10px] bg-slate-100 dark:bg-zinc-800 text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-zinc-700 px-1.5 py-0.2 rounded-full font-mono">
+                    {myBookings.length}
+                  </span>
+                </button>
+              </div>
+            )}
 
-            {/* ── Search & Filter Controls (Top of Left Half) ── */}
-            <div className="p-4 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 space-y-3 flex-shrink-0 z-10 shadow-xs">
+            {driverTab === 'my-passes' ? (
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="flex items-center justify-between pb-1">
+                  <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-zinc-400 font-semibold">
+                    My Active & Past Parking Passes ({myBookings.length})
+                  </span>
+                </div>
+                {myBookings.length === 0 ? (
+                  <div className="p-8 text-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl text-slate-500 dark:text-zinc-400 text-xs">
+                    <p className="font-semibold text-sm">No parking passes yet</p>
+                    <p className="mt-1">When you reserve a parking spot, your active OTP and pass details will be saved here.</p>
+                  </div>
+                ) : (
+                  myBookings.map((b) => (
+                    <div
+                      key={b.id}
+                      className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-4 shadow-xs space-y-3"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                            Booking Ref #{b.id}
+                          </span>
+                          <h4 className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">
+                            Vehicle: <span className="font-mono">{b.vehicle_no}</span>
+                          </h4>
+                          <p className="text-xs text-slate-600 dark:text-zinc-400 font-mono mt-0.5">
+                            Slot: {formatTime12(b.start_time)} – {formatTime12(b.end_time)} ({b.duration_hrs} hr)
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                          b.status === 'VERIFIED'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-300'
+                            : b.status === 'PENDING'
+                            ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-300'
+                            : b.status === 'COMPLETED'
+                            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border-blue-300'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {b.status}
+                        </span>
+                      </div>
+
+                      <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-xl p-3 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 font-bold block uppercase">
+                            Check-in OTP (Share with Host)
+                          </span>
+                          <span className="text-xl font-mono font-black tracking-widest text-emerald-900 dark:text-emerald-200">
+                            {b.otp}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-500 dark:text-zinc-400 block font-mono">Driver</span>
+                          <span className="text-xs font-semibold text-slate-800 dark:text-zinc-200">{b.driver_name}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <>
+                {/* ── Search & Filter Controls (Top of Left Half) ── */}
+                <div className="p-4 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 space-y-3 flex-shrink-0 z-10 shadow-xs">
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-slate-400 dark:text-zinc-500 text-xs">🔍</span>
                 <input
@@ -381,6 +492,8 @@ export default function ParkingMap() {
                 })
               )}
             </div>
+            </>
+            )}
           </div>
         )}
       </div>

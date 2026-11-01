@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createBooking } from '../../api'
+import { useAuth } from '../../context/AuthContext'
 import {
   formatTime12,
   formatDuration,
@@ -29,9 +30,18 @@ function navLink(lat, lng, label) {
 }
 
 export default function SpotCard({ spot, onClose, onBooked }) {
-  const [driverName, setDriverName] = useState('')
-  const [driverPhone, setDriverPhone] = useState('')
-  const [vehicleNo, setVehicleNo] = useState('')
+  const { user } = useAuth()
+  const [driverName, setDriverName] = useState(user?.name || '')
+  const [driverPhone, setDriverPhone] = useState(user?.phone || '')
+  const [vehicleNo, setVehicleNo] = useState(user?.default_vehicle_no || '')
+
+  useEffect(() => {
+    if (user) {
+      if (!driverName) setDriverName(user.name || '')
+      if (!driverPhone) setDriverPhone(user.phone || '')
+      if (!vehicleNo) setVehicleNo(user.default_vehicle_no || '')
+    }
+  }, [user])
   
   const bookedSlots = spot.booked_slots || []
   const availableSlots = getAvailableSlots(spot.avail_start, spot.avail_end, bookedSlots)
@@ -146,6 +156,7 @@ export default function SpotCard({ spot, onClose, onBooked }) {
     try {
       const result = await createBooking({
         spot_id: spot.id,
+        driver_id: user?.id || null,
         driver_name: driverName.trim(),
         driver_phone: driverPhone.trim() || null,
         vehicle_no: vehicleNo.trim().toUpperCase(),

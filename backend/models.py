@@ -3,10 +3,22 @@ from sqlalchemy.sql import func
 from database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    phone = Column(Text, unique=True, index=True, nullable=False)   # 10-digit mobile number
+    name = Column(Text, nullable=False)
+    pin_hash = Column(Text, nullable=False)                         # PBKDF2 salt$hash of 4/6-digit PIN
+    default_vehicle_no = Column(Text, nullable=True)                # e.g., "JH05A1211"
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class Spot(Base):
     __tablename__ = "spots"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # Linked registered owner
     title = Column(Text, nullable=False)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
@@ -28,6 +40,7 @@ class Booking(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     spot_id = Column(Integer, ForeignKey("spots.id"), nullable=False)
+    driver_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Linked registered driver
     driver_name = Column(Text, nullable=False)
     driver_phone = Column(Text, nullable=True)
     vehicle_no = Column(Text, nullable=False)
@@ -39,3 +52,4 @@ class Booking(Base):
     booked_at = Column(DateTime, server_default=func.now())
     expires_at = Column(DateTime, nullable=True)        # auto-release time for unverified hold
     verified_at = Column(DateTime, nullable=True)
+
