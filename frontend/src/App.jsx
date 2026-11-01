@@ -77,16 +77,68 @@ export default function App() {
       {/* ── Main Viewport ── */}
       <main className="flex-1 flex flex-col h-[calc(100vh-65px)] overflow-hidden">
         {mode === 'owner' ? (
-          <div className="max-w-7xl mx-auto w-full px-5 py-6 flex-1 overflow-y-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
-              <div className="lg:col-span-5">
-                <ListSpotForm onCreated={handleSpotCreated} />
-              </div>
-              <div className="lg:col-span-7">
-                <OwnerDashboard refresh={ownerRefresh} />
+          !user ? (
+            <div className="max-w-xl mx-auto w-full px-5 py-12 flex-1 flex flex-col items-center justify-center text-center">
+              <div className="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl p-8 shadow-xl space-y-6 animate-in zoom-in-95 duration-200">
+                <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-950/80 rounded-2xl flex items-center justify-center mx-auto text-3xl border border-indigo-200 dark:border-indigo-800 shadow-inner">
+                  🔐
+                </div>
+                <div>
+                  <span className="text-[11px] font-mono tracking-widest text-indigo-600 dark:text-indigo-400 uppercase font-bold block mb-1">
+                    Private Host Space
+                  </span>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+                    Host Portal Access
+                  </h2>
+                  <p className="text-xs text-slate-600 dark:text-zinc-400 mt-2 max-w-md mx-auto leading-relaxed">
+                    Host dashboards contain private financial earnings, spot pricing, and driver reservation data. Please sign in with your phone number and security PIN to manage your listings.
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-zinc-800/60 rounded-2xl p-4 text-left space-y-2.5 border border-slate-200 dark:border-zinc-700/60 text-xs">
+                  <div className="flex items-center gap-2.5 text-slate-700 dark:text-zinc-300">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span><strong>Private Financial Analytics:</strong> View your spot's earnings and verified sessions.</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-slate-700 dark:text-zinc-300">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span><strong>Your Listed Spaces:</strong> Publish, modify, and monitor your personal parking spots.</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-slate-700 dark:text-zinc-300">
+                    <span className="text-emerald-500 font-bold">✓</span>
+                    <span><strong>Driver OTP Check-In:</strong> Verify arriving drivers with their unique 4-digit pass.</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <button
+                    onClick={() => setIsAuthOpen(true)}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 rounded-xl text-xs transition shadow-md cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Sign In / Register as Host</span>
+                    <span>&rarr;</span>
+                  </button>
+                  <button
+                    onClick={() => setMode('driver')}
+                    className="w-full bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    ← Browse Public Spots as Driver
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="max-w-7xl mx-auto w-full px-5 py-6 flex-1 overflow-y-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
+                <div className="lg:col-span-5">
+                  <ListSpotForm onCreated={handleSpotCreated} />
+                </div>
+                <div className="lg:col-span-7">
+                  <OwnerDashboard refresh={ownerRefresh} />
+                </div>
+              </div>
+            </div>
+          )
         ) : (
           <ParkingMap />
         )}

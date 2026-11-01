@@ -37,6 +37,9 @@ export const getSpots = (status, includeArchived = false) => {
   return api.get('/api/spots', { params }).then((r) => r.data)
 }
 
+export const getMySpots = (includeArchived = true) =>
+  api.get('/api/spots/my', { params: { include_archived: includeArchived } }).then((r) => r.data)
+
 export const createSpot = (data) =>
   api.post('/api/spots', data).then((r) => r.data)
 

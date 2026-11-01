@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import {
-  getSpots,
+  getMySpots,
   getSpotBookings,
   deleteSpot,
   unarchiveSpot,
@@ -39,7 +39,6 @@ export default function OwnerDashboard({ refresh }) {
   const { user } = useAuth()
   const [spots, setSpots] = useState([])
   const [activeTab, setActiveTab] = useState('active') // 'active' | 'archived'
-  const [filterMineOnly, setFilterMineOnly] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [bookingsMap, setBookingsMap] = useState({})
   const [otpInputs, setOtpInputs] = useState({})
@@ -47,10 +46,11 @@ export default function OwnerDashboard({ refresh }) {
   const [loading, setLoading] = useState(false)
 
   const load = async () => {
+    if (!user) return
     setLoading(true)
     try {
-      // Fetch all spots including archived so host sees historical earnings
-      const data = await getSpots(null, true)
+      // Fetch only the authenticated host's spots (including archived for historical analytics)
+      const data = await getMySpots(true)
       setSpots(data)
       const newBookingsMap = {}
       for (const s of data) {
@@ -69,7 +69,7 @@ export default function OwnerDashboard({ refresh }) {
 
   useEffect(() => {
     load()
-  }, [refresh])
+  }, [refresh, user])
 
   const toggleExpand = async (spotId) => {
     if (expandedId === spotId) {
@@ -172,11 +172,10 @@ export default function OwnerDashboard({ refresh }) {
     }
   })
 
-  const filteredByOwnership = filterMineOnly && user
-    ? spots.filter((s) => s.owner_id === user.id || s.owner_phone === user.phone)
-    : spots
-  const activeSpots = filteredByOwnership.filter((s) => !s.is_archived)
-  const archivedSpots = filteredByOwnership.filter((s) => s.is_archived)
+  if (!user) return null
+
+  const activeSpots = spots.filter((s) => !s.is_archived)
+  const archivedSpots = spots.filter((s) => s.is_archived)
   const displayedSpots = activeTab === 'active' ? activeSpots : archivedSpots
 
   // Real-time occupancy: strictly 0% if no spot is actively inside a session right now!
@@ -187,9 +186,14 @@ export default function OwnerDashboard({ refresh }) {
       {/* ── High-Contrast Real-Time Telemetry Banner ── */}
       <div className="bg-slate-900 dark:bg-zinc-900 border border-slate-800 dark:border-zinc-800 rounded-2xl p-5 shadow-xs text-white">
         <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800 dark:border-zinc-800">
-          <span className="text-[11px] font-mono tracking-widest text-slate-400 uppercase font-bold">
-            Real-Time Host Performance Metrics
-          </span>
+          <div>
+            <span className="text-[11px] font-mono tracking-widest text-slate-400 uppercase font-bold block">
+              Host Performance & Earnings
+            </span>
+            <span className="text-xs text-indigo-400 font-semibold mt-0.5 block">
+              Portfolio for {user.name} ({user.phone})
+            </span>
+          </div>
           <span className="text-[11px] text-emerald-400 font-mono font-bold flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Live Telemetry
           </span>
@@ -221,7 +225,7 @@ export default function OwnerDashboard({ refresh }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('active')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'active'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
@@ -234,7 +238,7 @@ export default function OwnerDashboard({ refresh }) {
           </button>
           <button
             onClick={() => setActiveTab('archived')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'archived'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
@@ -248,19 +252,6 @@ export default function OwnerDashboard({ refresh }) {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {user && (
-            <button
-              onClick={() => setFilterMineOnly(!filterMineOnly)}
-              className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition cursor-pointer border ${
-                filterMineOnly
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                  : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-300 dark:border-zinc-700 hover:border-indigo-500'
-              }`}
-            >
-              {filterMineOnly ? '✓ My Spots Only' : 'Show My Spots Only'}
-            </button>
-          )}
-
           <button
             onClick={handleClearTestData}
             className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 px-2.5 py-1 rounded-xl transition cursor-pointer"

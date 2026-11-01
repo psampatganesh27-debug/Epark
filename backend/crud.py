@@ -4,7 +4,7 @@ from typing import Optional, List
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
-from sqlalchemy import update
+from sqlalchemy import update, or_
 
 from models import Spot, Booking
 import schemas
@@ -39,11 +39,24 @@ def _minutes_to_time(m: int) -> str:
 
 # ── Spot CRUD ────────────────────────────────────────────────────────────────
 
-def get_spots(db: Session, status: Optional[str] = None, include_archived: bool = False):
+def get_spots(
+    db: Session,
+    status: Optional[str] = None,
+    include_archived: bool = False,
+    owner_id: Optional[int] = None,
+    owner_phone: Optional[str] = None,
+):
     _expire_stale_reservations(db)
     query = db.query(Spot)
     if not include_archived:
         query = query.filter(Spot.is_archived == False)
+    if owner_id is not None or owner_phone is not None:
+        filters = []
+        if owner_id is not None:
+            filters.append(Spot.owner_id == owner_id)
+        if owner_phone is not None:
+            filters.append((Spot.owner_phone == owner_phone) & (Spot.owner_phone != None))
+        query = query.filter(or_(*filters))
     spots = query.order_by(Spot.created_at.desc()).all()
     
     now_ist = _get_now_ist()
